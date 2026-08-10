@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ryankidd/postmortem/journald"
 	"github.com/ryankidd/postmortem/timeline"
 )
 
@@ -22,6 +23,7 @@ func run(args []string, out *os.File) error {
 	fs := flag.NewFlagSet("postmortem", flag.ContinueOnError)
 	since := fs.String("since", "1h", "start of the window (RFC3339 timestamp or duration back from now)")
 	until := fs.String("until", "", "end of the window (RFC3339 timestamp, default now)")
+	unit := fs.String("unit", "", "restrict journald events to this systemd unit (default: all units)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -31,9 +33,11 @@ func run(args []string, out *os.File) error {
 		return err
 	}
 
-	// No sources are wired in yet; this stage validates the window and
-	// exercises the merge/render path against an empty timeline.
-	events, err := timeline.Build(nil, sinceTime, untilTime)
+	sources := []timeline.Source{
+		journald.Source{Unit: *unit},
+	}
+
+	events, err := timeline.Build(sources, sinceTime, untilTime)
 	if err != nil {
 		return err
 	}
