@@ -23,19 +23,22 @@ go build -o postmortem ./cmd/postmortem
 ```sh
 postmortem --since=2h
 postmortem --since=2026-08-10T10:00:00Z --until=2026-08-10T12:00:00Z
+postmortem --since=1h --unit=api.service
 ```
 
 - `--since` — start of the window: an RFC3339 timestamp, or a Go duration
   (`30m`, `2h`) measured back from now. Defaults to `1h`.
 - `--until` — end of the window: an RFC3339 timestamp. Defaults to now.
+- `--unit` — restrict journald events to a single systemd unit. Defaults to
+  all units.
 
 Each line of output is `<timestamp> [<source>] <summary>`, sorted
-chronologically across all sources.
+chronologically across all sources. It runs `journalctl` under the hood, so
+it needs to run somewhere with access to the journal it's reading.
 
-This is an early build: the window parsing and timeline merge/render
-pipeline are in place and tested against an injectable `Source` interface,
-but no real sources (journald, git, Prometheus) are wired in yet, so a run
-currently prints an empty timeline. That's next.
+This is an early build: journald is the only source wired in so far. git
+history and Prometheus are next, followed by a correlation pass that
+annotates anomalies with the nearest preceding change.
 
 ## Development
 
