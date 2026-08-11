@@ -1,0 +1,3 @@
+9f3c1ab1786363200Ada LovelaceAdd request timeout to the API client
+5b2d4e71786364100Grace HopperRaise the connection pool ceiling
+c81a06d1786365900Ada LovelaceRevert "Raise the connection pool ceiling"
