@@ -163,6 +163,7 @@ func TestSourceEventsMergesCommitsAndTags(t *testing.T) {
 		"-C", "/srv/api",
 		"log",
 		"--no-show-signature",
+		"--reverse",
 		"--since=@1786363200",
 		"--until=@1786366800",
 		"--pretty=format:" + logFormat,

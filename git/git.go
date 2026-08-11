@@ -81,9 +81,14 @@ func (s Source) Events(since, until time.Time) ([]timeline.Event, error) {
 }
 
 func (s Source) commits(run Runner, since, until time.Time) ([]timeline.Event, error) {
+	// --reverse makes git emit oldest commits first. Without it the
+	// merge step's stable sort leaves commits sharing a timestamp in
+	// git's default newest-first order, which reads backwards on a
+	// timeline.
 	out, err := run(s.args(
 		"log",
 		"--no-show-signature",
+		"--reverse",
 		"--since="+gitTime(since),
 		"--until="+gitTime(until),
 		"--pretty=format:"+logFormat,
