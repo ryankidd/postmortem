@@ -22,6 +22,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         go: ["1.22.2", "stable"]
+        # The oldest pinned Go no longer links a race-enabled test binary
+        # that the current macOS runner image will load (missing LC_UUID),
+        # so that floor is exercised on Linux and macOS is exercised on the
+        # current toolchain.
+        exclude:
+          - os: macos-latest
+            go: "1.22.2"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -40,7 +47,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          # Pinned to the module's Go version: golangci-lint type-checks
+          # against the toolchain's standard library, and a newer stable Go
+          # ships stdlib the released linter cannot yet parse.
+          go-version: "1.22.2"
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)
