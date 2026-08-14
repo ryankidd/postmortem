@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/ryankidd/postmortem/timeline"
 )
 
 func TestParseEntriesFromFixture(t *testing.T) {
@@ -40,6 +42,53 @@ func TestParseEntriesFromFixture(t *testing.T) {
 		}
 		if got[i].Summary != w.summary {
 			t.Errorf("event %d: Summary = %q, want %q", i, got[i].Summary, w.summary)
+		}
+	}
+}
+
+func TestParseEntriesClassifiesFixture(t *testing.T) {
+	data, err := os.ReadFile("testdata/sample.json")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	got, err := parseEntries(data)
+	if err != nil {
+		t.Fatalf("parseEntries: %v", err)
+	}
+
+	// systemd start line is a change, the plain app log is neutral, and the
+	// err-priority kernel line is an anomaly.
+	want := []timeline.Kind{timeline.Change, timeline.Neutral, timeline.Anomaly}
+	if len(got) != len(want) {
+		t.Fatalf("got %d events, want %d", len(got), len(want))
+	}
+	for i, w := range want {
+		if got[i].Kind != w {
+			t.Errorf("event %d: Kind = %v, want %v", i, got[i].Kind, w)
+		}
+	}
+}
+
+func TestClassify(t *testing.T) {
+	tests := []struct {
+		name string
+		e    entry
+		want timeline.Kind
+	}{
+		{"error priority", entry{Priority: "3", SyslogIdentifier: "kernel"}, timeline.Anomaly},
+		{"emergency priority", entry{Priority: "0"}, timeline.Anomaly},
+		{"systemd start", entry{Priority: "6", SyslogIdentifier: "systemd", Message: []byte(`"Started API service."`)}, timeline.Change},
+		{"systemd stop", entry{Priority: "6", SyslogIdentifier: "systemd", Message: []byte(`"Stopped API service."`)}, timeline.Change},
+		{"error outranks lifecycle", entry{Priority: "2", SyslogIdentifier: "systemd", Message: []byte(`"Stopped API service."`)}, timeline.Anomaly},
+		{"lifecycle verb from non-systemd", entry{Priority: "6", SyslogIdentifier: "api", Message: []byte(`"Started handling requests"`)}, timeline.Neutral},
+		{"info priority app log", entry{Priority: "6", SyslogIdentifier: "api", Message: []byte(`"request served"`)}, timeline.Neutral},
+		{"missing priority", entry{SyslogIdentifier: "api", Message: []byte(`"request served"`)}, timeline.Neutral},
+	}
+
+	for _, tc := range tests {
+		if got := classify(tc.e); got != tc.want {
+			t.Errorf("%s: classify = %v, want %v", tc.name, got, tc.want)
 		}
 	}
 }

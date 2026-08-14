@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ryankidd/postmortem/timeline"
@@ -84,6 +85,7 @@ type entry struct {
 	Message           json.RawMessage `json:"MESSAGE"`
 	Unit              string          `json:"_SYSTEMD_UNIT"`
 	SyslogIdentifier  string          `json:"SYSLOG_IDENTIFIER"`
+	Priority          string          `json:"PRIORITY"`
 }
 
 // parseEntries parses journalctl's `-o json` output: one compact JSON
@@ -110,6 +112,7 @@ func parseEntries(out []byte) ([]timeline.Event, error) {
 		events = append(events, timeline.Event{
 			Time:    t,
 			Source:  "journald",
+			Kind:    classify(e),
 			Summary: summarize(e),
 		})
 	}
@@ -125,6 +128,62 @@ func parseTimestamp(s string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.UnixMicro(usec).UTC(), nil
+}
+
+// errorPriority is the highest syslog priority value (least severe) still
+// treated as error-ish. syslog numbers severity in reverse: 3 is err, and
+// 2, 1, 0 are crit, alert and emerg.
+const errorPriority = 3
+
+// lifecycleVerbs are the leading words systemd uses when it logs a unit
+// changing state. A journal line from systemd itself that opens with one of
+// these is treated as a change to the system.
+var lifecycleVerbs = []string{
+	"Started",
+	"Starting",
+	"Stopped",
+	"Stopping",
+	"Restarted",
+	"Reloaded",
+	"Reloading",
+}
+
+// classify sorts a journal entry into a timeline.Kind. An error-level (or
+// worse) entry is an anomaly; a systemd unit start/stop line is a change;
+// anything else is neutral. Anomaly wins when both would apply.
+func classify(e entry) timeline.Kind {
+	if isErrorPriority(e.Priority) {
+		return timeline.Anomaly
+	}
+	if isLifecycle(e) {
+		return timeline.Change
+	}
+	return timeline.Neutral
+}
+
+// isErrorPriority reports whether a PRIORITY field names err or worse. A
+// missing or unparseable priority counts as not error-ish.
+func isErrorPriority(priority string) bool {
+	p, err := strconv.Atoi(priority)
+	if err != nil {
+		return false
+	}
+	return p <= errorPriority
+}
+
+// isLifecycle reports whether an entry is systemd announcing a unit change
+// of state, matched on the leading verb of the message.
+func isLifecycle(e entry) bool {
+	if e.SyslogIdentifier != "systemd" {
+		return false
+	}
+	msg := decodeMessage(e.Message)
+	for _, verb := range lifecycleVerbs {
+		if strings.HasPrefix(msg, verb+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 // summarize builds a one-line summary, prefixed with the unit (falling

@@ -207,6 +207,7 @@ func detect(body []byte, threshold float64, query string) ([]timeline.Event, err
 			events = append(events, timeline.Event{
 				Time:   s.Values[i].Time,
 				Source: "prometheus",
+				Kind:   timeline.Anomaly,
 				Summary: fmt.Sprintf("%s: %s crossed %s %s (value %s)",
 					query, label, direction, formatValue(threshold), formatValue(cur)),
 			})

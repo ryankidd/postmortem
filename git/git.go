@@ -151,6 +151,7 @@ func parseCommits(out []byte) ([]timeline.Event, error) {
 		events = append(events, timeline.Event{
 			Time:    t,
 			Source:  "git",
+			Kind:    timeline.Change,
 			Summary: fmt.Sprintf("%s %s (%s)", fields[0], fields[3], fields[2]),
 		})
 	}
@@ -193,6 +194,7 @@ func parseTags(out []byte, since, until time.Time) ([]timeline.Event, error) {
 		events = append(events, timeline.Event{
 			Time:    t,
 			Source:  "git",
+			Kind:    timeline.Change,
 			Summary: summary,
 		})
 	}
