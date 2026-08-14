@@ -44,13 +44,16 @@ postmortem --since=2h --prom-url=http://localhost:9090 --prom-query=node_load1 -
 - `--prom-step` — resolution of the range query. Defaults to `1m`.
 
 Each line of output is `<timestamp> [<source>] <summary>`, sorted
-chronologically across all sources:
+chronologically across all sources. Anomalies carry an indented `suspect`
+line naming the change that preceded them (see [Correlation](#correlation)):
 
 ```
 2026-08-10T12:00:00Z [git] 9f3c1ab Add request timeout to the API client (Ada Lovelace)
 2026-08-10T12:10:00Z [prometheus] node_load1: node_load1{instance="web-1"} crossed above 5 (value 6.1)
+    suspect: 10m after [git] 9f3c1ab Add request timeout to the API client (Ada Lovelace)
 2026-08-10T12:15:00Z [git] tag v1.4.0 -> 5b2d4e7 Release 1.4.0
 2026-08-10T12:16:04Z [journald] api.service: upstream timeout after 30s
+    suspect: 1m4s after [git] tag v1.4.0 -> 5b2d4e7 Release 1.4.0
 ```
 
 ## Sources
@@ -73,8 +76,27 @@ running the command.
 with the series that crossed and the value it reached. This talks to the
 Prometheus HTTP API, so `--prom-url` needs to point at a reachable server.
 
-A correlation pass that annotates anomalies with the nearest preceding change
-is next.
+## Correlation
+
+Every event is classified as either a **change** (something that altered the
+system) or an **anomaly** (something that broke), or left unclassified:
+
+- **changes** — git commits and tags, and journald lines where systemd
+  reports a unit starting, stopping, restarting or reloading.
+- **anomalies** — Prometheus threshold crossings, and journald lines logged
+  at syslog priority `err` or worse.
+
+After the timeline is merged, a correlation pass walks it in order and, for
+each anomaly, finds the nearest change that occurred strictly before it. That
+change is attached to the anomaly as a `suspect` annotation, along with the
+gap between the two (`12m after [git] 9f3c1ab …`). An anomaly with no change
+ahead of it is left unannotated.
+
+This is a **heuristic, not a proof of causation**. Naming the nearest
+preceding change is a correlation only: a change that merely happened to land
+just before an anomaly is flagged whether or not it caused it, and a genuine
+cause that predates a closer, unrelated change is missed. Treat a suspect as
+a lead to investigate, not a verdict.
 
 ## Development
 
