@@ -80,6 +80,8 @@ func run(args []string, out *os.File) error {
 		return err
 	}
 
+	events = timeline.Correlate(events)
+
 	fmt.Fprint(out, timeline.Render(events))
 	return nil
 }
