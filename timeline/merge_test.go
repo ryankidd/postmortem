@@ -64,3 +64,22 @@ func TestRenderFormatsEachEventOnOneLine(t *testing.T) {
 		t.Fatalf("Render() = %q, want %q", out, want)
 	}
 }
+
+func TestRenderIncludesSuspectAnnotation(t *testing.T) {
+	events := []Event{
+		{
+			Time:    time.Date(2026, 8, 10, 12, 16, 0, 0, time.UTC),
+			Source:  "prometheus",
+			Kind:    Anomaly,
+			Summary: "node_load1 crossed above 5",
+			Suspect: "16m after [git] 9f3c1ab Add request timeout",
+		},
+	}
+
+	out := Render(events)
+	want := "2026-08-10T12:16:00Z [prometheus] node_load1 crossed above 5\n" +
+		"    suspect: 16m after [git] 9f3c1ab Add request timeout\n"
+	if out != want {
+		t.Fatalf("Render() = %q, want %q", out, want)
+	}
+}

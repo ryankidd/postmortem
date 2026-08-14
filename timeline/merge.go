@@ -31,6 +31,9 @@ func Render(events []Event) string {
 	var b strings.Builder
 	for _, e := range events {
 		fmt.Fprintf(&b, "%s [%s] %s\n", e.Time.Format(time.RFC3339), e.Source, e.Summary)
+		if e.Suspect != "" {
+			fmt.Fprintf(&b, "    suspect: %s\n", e.Suspect)
+		}
 	}
 	return b.String()
 }
