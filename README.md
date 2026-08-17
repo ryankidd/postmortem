@@ -42,10 +42,12 @@ postmortem --since=2h --prom-url=http://localhost:9090 --prom-query=node_load1 -
 - `--prom-threshold` — the value a series has to cross for a crossing to
   become an event. Defaults to `0`.
 - `--prom-step` — resolution of the range query. Defaults to `1m`.
+- `--format` — output format: `text` (default) or `markdown`.
 
-Each line of output is `<timestamp> [<source>] <summary>`, sorted
-chronologically across all sources. Anomalies carry an indented `suspect`
-line naming the change that preceded them (see [Correlation](#correlation)):
+Each line of the default text output is `<timestamp> [<source>] <summary>`,
+sorted chronologically across all sources. Anomalies carry an indented
+`suspect` line naming the change that preceded them (see
+[Correlation](#correlation)):
 
 ```
 2026-08-10T12:00:00Z [git] 9f3c1ab Add request timeout to the API client (Ada Lovelace)
@@ -54,6 +56,31 @@ line naming the change that preceded them (see [Correlation](#correlation)):
 2026-08-10T12:15:00Z [git] tag v1.4.0 -> 5b2d4e7 Release 1.4.0
 2026-08-10T12:16:04Z [journald] api.service: upstream timeout after 30s
     suspect: 1m4s after [git] tag v1.4.0 -> 5b2d4e7 Release 1.4.0
+```
+
+### Markdown
+
+`--format=markdown` renders the same timeline as a Markdown report you can
+paste straight into an incident document: a heading with the window, then a
+table of events, with each anomaly's `suspect` surfaced on a second line
+inside its row.
+
+```sh
+postmortem --since=1h --git-repo=/srv/api --prom-url=http://localhost:9090 \
+  --prom-query=node_load1 --prom-threshold=5 --format=markdown
+```
+
+```markdown
+# Incident timeline
+
+**Window:** 2026-08-10T12:00:00Z → 2026-08-10T13:00:00Z
+
+| Time | Source | Event |
+| --- | --- | --- |
+| 2026-08-10T12:00:00Z | git | 9f3c1ab Add request timeout to the API client (Ada Lovelace) |
+| 2026-08-10T12:10:00Z | prometheus | node_load1: node_load1{instance="web-1"} crossed above 5 (value 6.1)<br>**suspect:** 10m after [git] 9f3c1ab Add request timeout to the API client (Ada Lovelace) |
+| 2026-08-10T12:15:00Z | git | tag v1.4.0 -> 5b2d4e7 Release 1.4.0 |
+| 2026-08-10T12:16:04Z | journald | api.service: upstream timeout after 30s<br>**suspect:** 1m4s after [git] tag v1.4.0 -> 5b2d4e7 Release 1.4.0 |
 ```
 
 ## Sources
