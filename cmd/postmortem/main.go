@@ -47,8 +47,13 @@ func run(args []string, out *os.File) error {
 	fs.Var(&promQueries, "prom-query", "PromQL expression to range-query for threshold crossings (repeatable)")
 	promThreshold := fs.Float64("prom-threshold", 0, "value a Prometheus series must cross to raise an event")
 	promStep := fs.Duration("prom-step", time.Minute, "resolution of the Prometheus range query")
+	format := fs.String("format", "text", "output format: text or markdown")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	if *format != "text" && *format != "markdown" {
+		return fmt.Errorf("unknown --format %q (want text or markdown)", *format)
 	}
 
 	if len(promQueries) > 0 && *promURL == "" {
@@ -82,6 +87,11 @@ func run(args []string, out *os.File) error {
 
 	events = timeline.Correlate(events)
 
-	fmt.Fprint(out, timeline.Render(events))
+	switch *format {
+	case "markdown":
+		fmt.Fprint(out, timeline.RenderMarkdown(events, sinceTime, untilTime))
+	default:
+		fmt.Fprint(out, timeline.Render(events))
+	}
 	return nil
 }
