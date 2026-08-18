@@ -83,6 +83,63 @@ postmortem --since=1h --git-repo=/srv/api --prom-url=http://localhost:9090 \
 | 2026-08-10T12:16:04Z | journald | api.service: upstream timeout after 30s<br>**suspect:** 1m4s after [git] tag v1.4.0 -> 5b2d4e7 Release 1.4.0 |
 ```
 
+## Worked example
+
+The git source needs nothing but a readable repository, so the whole flow is
+reproducible in a throwaway one. Build a repo with two commits and a release
+tag at known times (signing is disabled and the dates are pinned so the short
+SHAs below match exactly):
+
+```sh
+repo=$(mktemp -d)
+git -C "$repo" init -q -b main
+git -C "$repo" config user.name "Ada Lovelace"
+git -C "$repo" config user.email ada@example.com
+git -C "$repo" config commit.gpgsign false
+
+GIT_AUTHOR_DATE=2026-08-10T12:00:00Z GIT_COMMITTER_DATE=2026-08-10T12:00:00Z \
+  git -C "$repo" commit -q --allow-empty -m "Add request timeout to the API client"
+GIT_AUTHOR_DATE=2026-08-10T12:15:00Z GIT_COMMITTER_DATE=2026-08-10T12:15:00Z \
+  git -C "$repo" commit -q --allow-empty -m "Release 1.4.0"
+GIT_COMMITTER_DATE=2026-08-10T12:15:00Z \
+  git -C "$repo" tag -a v1.4.0 -m "Release 1.4.0"
+```
+
+Build the timeline over that window. `--unit` points at a unit that does not
+exist, so the example shows only the git source rather than whatever happens to
+be in the local journal:
+
+```sh
+postmortem --since=2026-08-10T11:59:00Z --until=2026-08-10T12:30:00Z \
+  --git-repo="$repo" --unit=postmortem-example.service
+```
+
+```
+2026-08-10T12:00:00Z [git] a0899d0 Add request timeout to the API client (Ada Lovelace)
+2026-08-10T12:15:00Z [git] 9a0f18c Release 1.4.0 (Ada Lovelace)
+2026-08-10T12:15:00Z [git] tag v1.4.0 -> 9a0f18c Release 1.4.0
+```
+
+Add `--format=markdown` for a report that pastes straight into an incident doc:
+
+```markdown
+# Incident timeline
+
+**Window:** 2026-08-10T11:59:00Z → 2026-08-10T12:30:00Z
+
+| Time | Source | Event |
+| --- | --- | --- |
+| 2026-08-10T12:00:00Z | git | a0899d0 Add request timeout to the API client (Ada Lovelace) |
+| 2026-08-10T12:15:00Z | git | 9a0f18c Release 1.4.0 (Ada Lovelace) |
+| 2026-08-10T12:15:00Z | git | tag v1.4.0 -> 9a0f18c Release 1.4.0 |
+```
+
+Drop the `--unit` filter, or add `--prom-url`/`--prom-query`, to fold journald
+entries and Prometheus threshold crossings into the same timeline. The
+`suspect` annotations shown elsewhere in this README appear once there is an
+anomaly for a change to be correlated against — a git-only window has changes
+but nothing that broke.
+
 ## Sources
 
 **journald** — every journal entry in the window, or just one unit's with
